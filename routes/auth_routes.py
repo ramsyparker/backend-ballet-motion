@@ -12,6 +12,14 @@ import random
 import logging
 from datetime import datetime, timedelta
 from routes.decorators import require_api_key
+import firebase_admin
+from firebase_admin import credentials, auth
+
+# Inisialisasi Firebase Admin hanya sekali di awal aplikasi
+if not firebase_admin._apps:
+    cred = credentials.Certificate("firebase_service_account.json")  # path ke file JSON Anda
+    firebase_admin.initialize_app(cred)
+
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -231,6 +239,7 @@ def login():
             "profile_picture": get_profile_picture(user)
         }
     }), 200
+
 @auth_bp.route('/google-login', methods=['POST'])
 def google_login():
     data = request.get_json()
@@ -240,21 +249,11 @@ def google_login():
         return jsonify({"status": "error", "message": "Missing Google token"}), 400
 
     try:
-        # Verifikasi token ke Google
-        response = requests.get(
-            f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
-        )
-        info = response.json()
-
-        # Validasi client_id
-        google_client_id = current_app.config['GOOGLE_CLIENT_ID']
-        if response.status_code != 200 or info.get("aud") != google_client_id:
-            return jsonify({"status": "error", "message": "Invalid Google token"}), 400
-
-        # Ambil data user dari token
-        email = info.get("email")
-        username = info.get("name")
-        picture = info.get("picture")
+        # Verifikasi token ke Firebase
+        decoded_token = auth.verify_id_token(id_token)
+        email = decoded_token.get("email")
+        username = decoded_token.get("name") or decoded_token.get("email").split("@")[0]
+        picture = decoded_token.get("picture")
 
         if not email:
             return jsonify({"status": "error", "message": "Google token missing email"}), 400
@@ -292,7 +291,8 @@ def google_login():
         }), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Something went wrong: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": f"Invalid Firebase token: {str(e)}"}), 400@auth_bp.route('/forgot-password', methods=['POST'])
+
 
 @auth_bp.route('/forgot-password', methods=['POST'])
 @require_api_key
@@ -355,6 +355,7 @@ def logout():
     jti = get_jwt()["jti"]
     revoked_tokens.add(jti)
     return jsonify({"status": "success", "message": "Logged out successfully"}), 200
+
 @auth_bp.route('/update-profile', methods=['PUT'])
 @jwt_required()
 def update_profile():

@@ -2,7 +2,7 @@ import os
 from datetime import timedelta
 
 class Config:
-    GOOGLE_CLIENT_ID = "1018249519540-sqpmd8r5th2pie99cvmm4ag9uln1j9pi.apps.googleusercontent.com"
+    GOOGLE_CLIENT_ID = "582378404984-ckh17s4d1jut74338h4drf8h8186bqbp.apps.googleusercontent.com"
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your_secret_key'
     MONGO_URI = 'mongodb://localhost:27017/ballet_app'
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'static', 'uploads')

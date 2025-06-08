@@ -13,7 +13,7 @@ def get_chapters():
     result = []
 
     for chapter in chapters:
-        lessons = list(mongo.db.lessons.find({"chapter_id": str(chapter['_id'])}))
+        lessons = list(mongo.db.lessons.find({"chapter_id": chapter['_id']}))
         lesson_list = [{
             "id": str(lesson['_id']),
             "title": lesson['title'],
