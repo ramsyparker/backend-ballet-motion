@@ -160,6 +160,7 @@ def delete_profile_picture():
         "status": "success",
         "message": "Profile picture deleted"
     }), 200
+
 @auth_bp.route('/verify_register_otp', methods=['POST'])
 @require_api_key
 def verify_register_otp():
@@ -210,12 +211,14 @@ def verify_register_otp():
         }
     }), 200
 
+
 @auth_bp.route('/login', methods=['POST'])
 @require_api_key
 def login():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
+    device_name = data.get('device_name', 'Unknown Device')
 
     if not email or not password:
         return jsonify({"status": "error", "message": "Email and password are required"}), 422
@@ -228,6 +231,18 @@ def login():
         return jsonify({"status": "error", "message": "Please verify your email before logging in"}), 403
 
     token = create_access_token(identity=str(user["_id"]))
+
+    # Simpan informasi device ke array
+    mongo.db.users.update_one(
+        {"_id": user["_id"]},
+        {"$push": {
+            "devices": {
+                "name": device_name,
+                "timestamp": datetime.utcnow()
+            }
+        }}
+    )
+
     return jsonify({
         "status": "success",
         "message": "Login successful",
@@ -236,46 +251,62 @@ def login():
             "id": str(user["_id"]),
             "username": user["username"],
             "email": user["email"],
-            "profile_picture": get_profile_picture(user)
+            "profile_picture": get_profile_picture(user),
+            "device_name": device_name
         }
     }), 200
 
+
 @auth_bp.route('/google-login', methods=['POST'])
+@require_api_key
 def google_login():
     data = request.get_json()
     id_token = data.get("idToken")
+    device_name = data.get("device_name", "Unknown Device")
+    print(f"Received token at: {datetime.utcnow().isoformat()}")
 
     if not id_token:
         return jsonify({"status": "error", "message": "Missing Google token"}), 400
 
     try:
-        # Verifikasi token ke Firebase
         decoded_token = auth.verify_id_token(id_token)
         email = decoded_token.get("email")
-        username = decoded_token.get("name") or decoded_token.get("email").split("@")[0]
+        username = decoded_token.get("name") or email.split("@")[0]
         picture = decoded_token.get("picture")
 
         if not email:
             return jsonify({"status": "error", "message": "Google token missing email"}), 400
 
-        # Cek user sudah ada di DB atau belum
         user = mongo.db.users.find_one({"email": email})
 
         if not user:
-            # Buat user baru jika belum ada
             user_data = {
                 "email": email,
                 "username": username,
-                "password": generate_password_hash(ObjectId().__str__()),  # password acak
-                "profile_picture": picture,
+                "password": generate_password_hash(ObjectId().__str__()),
+                "profile_picture": DEFAULT_PROFILE_PICTURE,
                 "is_verified": True,
-                "from_google": True
+                "from_google": True,
+                "devices": [{
+                    "name": device_name,
+                    "timestamp": datetime.utcnow()
+                }]
             }
             user_id = mongo.db.users.insert_one(user_data).inserted_id
             user = user_data
             user["_id"] = user_id
+        else:
+            # Tambahkan device baru ke daftar perangkat
+            mongo.db.users.update_one(
+                {"_id": user["_id"]},
+                {"$push": {
+                    "devices": {
+                        "name": device_name,
+                        "timestamp": datetime.utcnow()
+                    }
+                }}
+            )
 
-        # Buat JWT token
         token = create_access_token(identity=str(user["_id"]))
 
         return jsonify({
@@ -286,13 +317,13 @@ def google_login():
                 "id": str(user["_id"]),
                 "username": user["username"],
                 "email": user["email"],
-                "profile_picture": get_profile_picture(user)
+                "profile_picture": get_profile_picture(user),
+                "device_name": device_name
             }
         }), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Invalid Firebase token: {str(e)}"}), 400@auth_bp.route('/forgot-password', methods=['POST'])
-
+        return jsonify({"status": "error", "message": f"Invalid Firebase token: {str(e)}"}), 400
 
 @auth_bp.route('/forgot-password', methods=['POST'])
 @require_api_key
@@ -533,4 +564,21 @@ def get_all_users():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@auth_bp.route('/device-history', methods=['GET'])
+@jwt_required()
+def get_device_history():
+    user_id = get_jwt_identity()
+    user = mongo.db.users.find_one({'_id': ObjectId(user_id)}, {'devices': 1})
+    
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
 
+    devices = user.get('devices', [])
+    # urutkan berdasarkan timestamp terbaru
+    devices.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)
+
+    # ubah datetime ke string
+    for device in devices:
+        device['timestamp'] = device['timestamp'].isoformat() + 'Z'
+
+    return jsonify({'status': 'success', 'data': devices}), 200
