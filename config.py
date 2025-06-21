@@ -4,7 +4,8 @@ from datetime import timedelta
 class Config:
     GOOGLE_CLIENT_ID = "582378404984-ckh17s4d1jut74338h4drf8h8186bqbp.apps.googleusercontent.com"
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your_secret_key'
-    MONGO_URI = 'mongodb://localhost:27017/ballet_app'
+    MONGO_URI = 'mongodb+srv://balletmotion30:Password30@capstone.a6u5hbn.mongodb.net/ballet_motion?retryWrites=true&w=majority&appName=Capstone'
+    MONGO_DBNAME = 'ballet_motion'
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'static', 'uploads')
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or "jwt_secret_key"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)

@@ -18,6 +18,7 @@ from routes.auth_routes import auth_bp
 from routes.article_routes import article_bp
 from routes.progress_routes import progress_bp
 from routes.analysis_routes import analysis_bp
+from routes.detection_routes import detection_bp
 
 # Setup Logging
 logging.basicConfig(level=logging.DEBUG)
@@ -45,7 +46,7 @@ def check_if_token_is_revoked(jwt_header, jwt_payload):
 
 
 # Registrasi Blueprints
-
+app.register_blueprint(detection_bp)
 app.register_blueprint(analysis_bp)  # ← daftarkan
 app.register_blueprint(article_bp)
 app.register_blueprint(auth_bp)
